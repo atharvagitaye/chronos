@@ -1,6 +1,7 @@
 package dev.atharvagitaye.chronos.common.exception;
 
 import dev.atharvagitaye.chronos.job.service.JobService.JobNotFoundException;
+import dev.atharvagitaye.chronos.dlq.DlqService;
 import java.time.Instant;
 import java.util.Map;
 import org.springframework.http.HttpStatus;
@@ -15,6 +16,16 @@ public class ApiExceptionHandler {
 	@ExceptionHandler(JobNotFoundException.class)
 	public ResponseEntity<Map<String, Object>> handleNotFound(JobNotFoundException exception) {
 		return error(HttpStatus.NOT_FOUND, "JOB_NOT_FOUND", exception.getMessage());
+	}
+
+	@ExceptionHandler(DlqService.JobNotFoundException.class)
+	public ResponseEntity<Map<String, Object>> handleDlqNotFound(DlqService.JobNotFoundException exception) {
+		return error(HttpStatus.NOT_FOUND, "JOB_NOT_FOUND", exception.getMessage());
+	}
+
+	@ExceptionHandler(IllegalStateException.class)
+	public ResponseEntity<Map<String, Object>> handleInvalidState(IllegalStateException exception) {
+		return error(HttpStatus.CONFLICT, "INVALID_JOB_STATE", exception.getMessage());
 	}
 
 	@ExceptionHandler(MethodArgumentNotValidException.class)

@@ -6,6 +6,7 @@ import dev.atharvagitaye.chronos.queue.RabbitMqConfig;
 import dev.atharvagitaye.chronos.retry.NonRetryableException;
 import dev.atharvagitaye.chronos.retry.RetryStrategy;
 import dev.atharvagitaye.chronos.retry.RetryableException;
+import dev.atharvagitaye.chronos.job.enums.JobStatus;
 import java.util.UUID;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
@@ -55,7 +56,7 @@ public class JobWorker {
 			job.fail("Job interrupted");
 		} catch (RetryableException exception) {
 			if (job.getRetryCount() >= job.getMaxRetries()) {
-				job.fail(exception.getMessage());
+				moveToDlq(job, exception.getMessage());
 				return;
 			}
 			job.retry(exception.getMessage());
@@ -66,10 +67,16 @@ public class JobWorker {
 					return retryMessage;
 				});
 		} catch (NonRetryableException exception) {
-			job.fail(exception.getMessage());
+			moveToDlq(job, exception.getMessage());
 		} catch (RuntimeException exception) {
 			job.fail(exception.getMessage());
 		}
+	}
+
+	private void moveToDlq(Job job, String error) {
+		job.moveToDlq(error);
+		rabbitTemplate.convertAndSend(RabbitMqConfig.DLQ,
+				new JobMessage(job.getId(), job.getRetryCount(), job.getJobType(), job.getPriority().name()));
 	}
 
 	private String retryQueue(String priority) {

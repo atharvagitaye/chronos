@@ -15,6 +15,8 @@ The current implementation provides a working REST API backed by PostgreSQL and 
 - Publish pending outbox events to RabbitMQ using priority routing keys
 - Consume messages with a bounded worker listener and persist `RUNNING`/`SUCCESS` state
 - Retry transient simulated failures with exponential backoff and jitter
+- Route exhausted and non-retryable failures to a durable DLQ
+- Replay DLQ jobs through the transactional outbox
 
 Jobs currently begin in `CREATED`. Workers, retries, idempotency, scheduling, and deployment infrastructure will be added in later verified slices.
 
@@ -88,4 +90,4 @@ The test suite uses an in-memory H2 database and disables RabbitMQ publishing:
 .\mvnw.cmd test
 ```
 
-Retryable simulated failures are republished to a priority-specific RabbitMQ retry queue with per-message expiration. The delay starts at 2 seconds and doubles up to the configured maximum, with 10% jitter to reduce retry synchronization. The retry queue dead-letters the message back to the original priority queue. Unsupported job types are non-retryable. A job that exhausts its retries is currently recorded as `FAILED`; the dead-letter queue and replay endpoint are the next slice.
+Retryable simulated failures are republished to a priority-specific RabbitMQ retry queue with per-message expiration. The delay starts at 2 seconds and doubles up to the configured maximum, with 10% jitter to reduce retry synchronization. The retry queue dead-letters the message back to the original priority queue. Unsupported job types are non-retryable and, like exhausted retries, are recorded as `DLQ` and sent to `chronos.dlq`. `GET /api/v1/dlq/jobs` lists these jobs; `POST /api/v1/dlq/jobs/{jobId}/replay` resets the job and creates a new outbox event for normal processing.

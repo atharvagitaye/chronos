@@ -61,4 +61,18 @@ class JobWorkerTest {
 				org.mockito.ArgumentMatchers.any(JobMessage.class),
 				org.mockito.ArgumentMatchers.any(MessagePostProcessor.class));
 	}
+
+	@Test
+	void sendsExhaustedRetryToDlq() throws Exception {
+		Job job = new Job("SIMULATED", Map.of(), JobPriority.LOW, 0, null);
+		when(jobRepository.findForUpdate(job.getId())).thenReturn(Optional.of(job));
+		doThrow(new RetryableException("permanent failure")).when(simulatedJobHandler).execute(job.getPayload(), 0);
+
+		new JobWorker(jobRepository, simulatedJobHandler, rabbitTemplate, new RetryStrategy(2000, 30000))
+				.consume(new JobMessage(job.getId(), 0, "SIMULATED", "LOW"));
+
+		assertEquals(JobStatus.DLQ, job.getStatus());
+		verify(rabbitTemplate).convertAndSend(org.mockito.ArgumentMatchers.eq("chronos.dlq"),
+				org.mockito.ArgumentMatchers.any(JobMessage.class));
+	}
 }

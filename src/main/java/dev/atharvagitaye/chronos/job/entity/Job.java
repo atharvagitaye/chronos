@@ -109,6 +109,24 @@ public class Job {
 		updatedAt = Instant.now();
 	}
 
+	public void moveToDlq(String error) {
+		status = JobStatus.DLQ;
+		lastError = error;
+		updatedAt = Instant.now();
+	}
+
+	public void replay() {
+		if (status != JobStatus.DLQ) {
+			throw new IllegalStateException("Only DLQ jobs can be replayed");
+		}
+		status = JobStatus.CREATED;
+		retryCount = 0;
+		lastError = null;
+		startedAt = null;
+		completedAt = null;
+		updatedAt = Instant.now();
+	}
+
 	public UUID getId() { return id; }
 	public String getJobType() { return jobType; }
 	public Map<String, Object> getPayload() { return payload; }

@@ -21,6 +21,7 @@ public class RabbitMqConfig {
 	public static final String HIGH_RETRY_QUEUE = "chronos.high.retry.queue";
 	public static final String MEDIUM_RETRY_QUEUE = "chronos.medium.retry.queue";
 	public static final String LOW_RETRY_QUEUE = "chronos.low.retry.queue";
+	public static final String DLQ = "chronos.dlq";
 
 	@Bean
 	DirectExchange jobExchange() {
@@ -55,6 +56,11 @@ public class RabbitMqConfig {
 	@Bean
 	Queue lowRetryQueue() {
 		return retryQueue(LOW_RETRY_QUEUE, "job.low");
+	}
+
+	@Bean
+	Queue deadLetterQueue() {
+		return new Queue(DLQ, true);
 	}
 
 	private Queue retryQueue(String name, String deadLetterRoutingKey) {
