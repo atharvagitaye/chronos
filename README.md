@@ -14,6 +14,7 @@ The current implementation provides a working REST API backed by PostgreSQL and 
 - Write a `JOB_CREATED` outbox event in the same transaction as the job
 - Publish pending outbox events to RabbitMQ using priority routing keys
 - Consume messages with a bounded worker listener and persist `RUNNING`/`SUCCESS` state
+- Retry transient simulated failures with exponential backoff and jitter
 
 Jobs currently begin in `CREATED`. Workers, retries, idempotency, scheduling, and deployment infrastructure will be added in later verified slices.
 
@@ -87,4 +88,4 @@ The test suite uses an in-memory H2 database and disables RabbitMQ publishing:
 .\mvnw.cmd test
 ```
 
-The next implementation slice will add retry queues, failure classification, and dead-letter handling. RabbitMQ consumers use manual acknowledgement defaults with listener exceptions reserved for infrastructure failures; simulated job failures are currently recorded as `FAILED` and acknowledged so they do not loop until retry policy exists.
+Retryable simulated failures are republished to a priority-specific RabbitMQ retry queue with per-message expiration. The delay starts at 2 seconds and doubles up to the configured maximum, with 10% jitter to reduce retry synchronization. The retry queue dead-letters the message back to the original priority queue. Unsupported job types are non-retryable. A job that exhausts its retries is currently recorded as `FAILED`; the dead-letter queue and replay endpoint are the next slice.

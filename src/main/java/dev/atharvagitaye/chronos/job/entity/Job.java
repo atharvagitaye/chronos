@@ -82,7 +82,7 @@ public class Job {
 	}
 
 	public void start() {
-		if (status != JobStatus.CREATED && status != JobStatus.QUEUED) {
+		if (status != JobStatus.CREATED && status != JobStatus.QUEUED && status != JobStatus.RETRYING) {
 			return;
 		}
 		status = JobStatus.RUNNING;
@@ -98,6 +98,13 @@ public class Job {
 
 	public void fail(String error) {
 		status = JobStatus.FAILED;
+		lastError = error;
+		updatedAt = Instant.now();
+	}
+
+	public void retry(String error) {
+		retryCount++;
+		status = JobStatus.RETRYING;
 		lastError = error;
 		updatedAt = Instant.now();
 	}

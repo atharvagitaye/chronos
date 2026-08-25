@@ -9,6 +9,7 @@ import org.springframework.amqp.rabbit.core.RabbitAdmin;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.amqp.support.converter.JacksonJsonMessageConverter;
+import java.util.Map;
 
 @Configuration
 public class RabbitMqConfig {
@@ -17,6 +18,9 @@ public class RabbitMqConfig {
 	public static final String HIGH_QUEUE = "chronos.high.queue";
 	public static final String MEDIUM_QUEUE = "chronos.medium.queue";
 	public static final String LOW_QUEUE = "chronos.low.queue";
+	public static final String HIGH_RETRY_QUEUE = "chronos.high.retry.queue";
+	public static final String MEDIUM_RETRY_QUEUE = "chronos.medium.retry.queue";
+	public static final String LOW_RETRY_QUEUE = "chronos.low.retry.queue";
 
 	@Bean
 	DirectExchange jobExchange() {
@@ -36,6 +40,28 @@ public class RabbitMqConfig {
 	@Bean
 	Queue lowQueue() {
 		return new Queue(LOW_QUEUE, true);
+	}
+
+	@Bean
+	Queue highRetryQueue() {
+		return retryQueue(HIGH_RETRY_QUEUE, "job.high");
+	}
+
+	@Bean
+	Queue mediumRetryQueue() {
+		return retryQueue(MEDIUM_RETRY_QUEUE, "job.medium");
+	}
+
+	@Bean
+	Queue lowRetryQueue() {
+		return retryQueue(LOW_RETRY_QUEUE, "job.low");
+	}
+
+	private Queue retryQueue(String name, String deadLetterRoutingKey) {
+		return new Queue(name, true, false, false, Map.of(
+				"x-message-ttl", 30000,
+				"x-dead-letter-exchange", JOB_EXCHANGE,
+				"x-dead-letter-routing-key", deadLetterRoutingKey));
 	}
 
 	@Bean
