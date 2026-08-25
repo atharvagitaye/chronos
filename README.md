@@ -103,7 +103,7 @@ The test suite uses an in-memory H2 database and disables RabbitMQ publishing:
 .\mvnw.cmd test
 ```
 
-The test suite also includes a PostgreSQL Testcontainers integration test. It starts a disposable `postgres:16-alpine` container, applies every Flyway migration, and verifies job, outbox, and idempotency persistence. Docker Desktop must be running for this test.
+The test suite also includes PostgreSQL and RabbitMQ Testcontainers integration tests. They start disposable `postgres:16-alpine` and `rabbitmq:4-management-alpine` containers, apply every Flyway migration, and verify persistence plus the asynchronous API -> outbox -> RabbitMQ -> worker -> `SUCCESS` flow. Docker Desktop must be running for these tests.
 
 Retryable simulated failures are republished to a priority-specific RabbitMQ retry queue with per-message expiration. The delay starts at 2 seconds and doubles up to the configured maximum, with 10% jitter to reduce retry synchronization. The retry queue dead-letters the message back to the original priority queue. Unsupported job types are non-retryable and, like exhausted retries, are recorded as `DLQ` and sent to `chronos.dlq`. `GET /api/v1/dlq/jobs` lists these jobs; `POST /api/v1/dlq/jobs/{jobId}/replay` resets the job and creates a new outbox event for normal processing.
 
