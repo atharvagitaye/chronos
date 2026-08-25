@@ -40,4 +40,8 @@ public class JobExecutionService {
 		executionRepository.findByJobIdAndAttemptNumber(jobId, attemptNumber)
 				.ifPresent(execution -> execution.fail(error));
 	}
+
+	public String workerId() {
+		return workerId;
+	}
 }

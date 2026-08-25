@@ -23,6 +23,7 @@ public class JobWorker {
 	private final RabbitTemplate rabbitTemplate;
 	private final RetryStrategy retryStrategy;
 	private final JobExecutionService executionService;
+	private final long leaseDurationMs = 60000;
 
 	public JobWorker(JobRepository jobRepository, SimulatedJobHandler simulatedJobHandler, RabbitTemplate rabbitTemplate,
 			RetryStrategy retryStrategy, JobExecutionService executionService) {
@@ -47,7 +48,7 @@ public class JobWorker {
 			return;
 		}
 
-		job.start();
+		job.start(executionService.workerId(), leaseDurationMs);
 		if (job.getStatus() != dev.atharvagitaye.chronos.job.enums.JobStatus.RUNNING) {
 			return;
 		}

@@ -61,6 +61,12 @@ public class Job {
 	@Column(name = "last_error")
 	private String lastError;
 
+	@Column(name = "locked_by")
+	private String lockedBy;
+
+	@Column(name = "lease_until")
+	private Instant leaseUntil;
+
 	@Version
 	@Column(nullable = false)
 	private long version;
@@ -81,25 +87,29 @@ public class Job {
 		this.updatedAt = this.createdAt;
 	}
 
-	public void start() {
+	public void start(String workerId, long leaseDurationMs) {
 		if (status != JobStatus.CREATED && status != JobStatus.QUEUED && status != JobStatus.RETRYING) {
 			return;
 		}
 		status = JobStatus.RUNNING;
 		startedAt = Instant.now();
 		updatedAt = startedAt;
+		lockedBy = workerId;
+		leaseUntil = updatedAt.plusMillis(leaseDurationMs);
 	}
 
 	public void complete() {
 		status = JobStatus.SUCCESS;
 		completedAt = Instant.now();
 		updatedAt = completedAt;
+		clearLease();
 	}
 
 	public void fail(String error) {
 		status = JobStatus.FAILED;
 		lastError = error;
 		updatedAt = Instant.now();
+		clearLease();
 	}
 
 	public void retry(String error) {
@@ -107,12 +117,27 @@ public class Job {
 		status = JobStatus.RETRYING;
 		lastError = error;
 		updatedAt = Instant.now();
+		clearLease();
 	}
 
 	public void moveToDlq(String error) {
 		status = JobStatus.DLQ;
 		lastError = error;
 		updatedAt = Instant.now();
+		clearLease();
+	}
+
+	public void recover() {
+		if (status == JobStatus.RUNNING && leaseUntil != null && leaseUntil.isBefore(Instant.now())) {
+			status = JobStatus.QUEUED;
+			updatedAt = Instant.now();
+			clearLease();
+		}
+	}
+
+	private void clearLease() {
+		lockedBy = null;
+		leaseUntil = null;
 	}
 
 	public void replay() {
@@ -140,5 +165,7 @@ public class Job {
 	public Instant getStartedAt() { return startedAt; }
 	public Instant getCompletedAt() { return completedAt; }
 	public String getLastError() { return lastError; }
+	public String getLockedBy() { return lockedBy; }
+	public Instant getLeaseUntil() { return leaseUntil; }
 	public long getVersion() { return version; }
 }

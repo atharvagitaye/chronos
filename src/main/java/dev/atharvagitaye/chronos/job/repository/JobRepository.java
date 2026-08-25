@@ -9,6 +9,8 @@ import org.springframework.data.jpa.repository.Query;
 import dev.atharvagitaye.chronos.job.enums.JobStatus;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import java.time.Instant;
+import java.util.List;
 
 public interface JobRepository extends JpaRepository<Job, UUID> {
 
@@ -17,4 +19,10 @@ public interface JobRepository extends JpaRepository<Job, UUID> {
 	java.util.Optional<Job> findForUpdate(UUID jobId);
 
 	Page<Job> findByStatus(JobStatus status, Pageable pageable);
+
+	@Lock(LockModeType.PESSIMISTIC_WRITE)
+	@Query("select job from Job job where job.status = dev.atharvagitaye.chronos.job.enums.JobStatus.RUNNING "
+			+ "and job.leaseUntil < :now")
+	List<Job> findExpiredLeases(@org.springframework.data.repository.query.Param("now") Instant now,
+			Pageable pageable);
 }
