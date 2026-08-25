@@ -25,4 +25,10 @@ public interface JobRepository extends JpaRepository<Job, UUID> {
 			+ "and job.leaseUntil < :now")
 	List<Job> findExpiredLeases(@org.springframework.data.repository.query.Param("now") Instant now,
 			Pageable pageable);
+
+	@Lock(LockModeType.PESSIMISTIC_WRITE)
+	@Query("select job from Job job where job.status = dev.atharvagitaye.chronos.job.enums.JobStatus.CREATED "
+			+ "and job.scheduledAt <= :now")
+	List<Job> findDueScheduledJobs(@org.springframework.data.repository.query.Param("now") Instant now,
+			Pageable pageable);
 }

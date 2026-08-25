@@ -19,6 +19,7 @@ The current implementation provides a working REST API backed by PostgreSQL and 
 - Replay DLQ jobs through the transactional outbox
 - Record one execution claim per job attempt to suppress duplicate deliveries
 - Recover expired worker leases through a new queued outbox event
+- Defer future jobs until the scheduler finds them due
 
 Jobs currently begin in `CREATED`. Workers, retries, idempotency, scheduling, and deployment infrastructure will be added in later verified slices.
 
@@ -97,3 +98,5 @@ Retryable simulated failures are republished to a priority-specific RabbitMQ ret
 Execution idempotency stores a committed unique claim for each `(jobId, attemptNumber)` before the handler runs. A duplicate RabbitMQ delivery sees the existing claim and is acknowledged without invoking the handler again. Delivery remains at-least-once; recovery of a worker that dies while holding a `RUNNING` claim is handled by the upcoming lease/recovery slice.
 
 Workers hold a 60-second database lease in `locked_by` and `lease_until`. A scheduled recovery task finds expired `RUNNING` jobs, returns them to `QUEUED`, and writes a new outbox event with the next attempt number. This allows a crashed worker's work to be retried while preserving the original execution record.
+
+Jobs with a future `scheduledAt` are persisted as `CREATED` without an outbox event, so they cannot execute early. The scheduler polls PostgreSQL every second by default, locks due jobs, changes them to `QUEUED`, and creates a `JOB_SCHEDULED` outbox event. Configure the interval with `CHRONOS_SCHEDULER_INTERVAL_MS`.

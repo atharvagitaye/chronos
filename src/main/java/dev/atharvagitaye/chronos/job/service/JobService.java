@@ -28,10 +28,15 @@ public class JobService {
 		int maxRetries = request.maxRetries() == null ? 3 : request.maxRetries();
 		Job job = jobRepository.save(new Job(request.jobType(), request.payload(), request.priority(), maxRetries,
 				request.scheduledAt()));
-		outboxRepository.save(new OutboxEvent(job.getId(), "JOB", "JOB_CREATED", Map.of(
-				"jobId", job.getId().toString(), "attempt", 0, "jobType", job.getJobType(),
-				"priority", job.getPriority().name())));
+		if (job.getScheduledAt() == null || !job.getScheduledAt().isAfter(java.time.Instant.now())) {
+			outboxRepository.save(new OutboxEvent(job.getId(), "JOB", "JOB_CREATED", messagePayload(job)));
+		}
 		return job;
+	}
+
+	private Map<String, Object> messagePayload(Job job) {
+		return Map.of("jobId", job.getId().toString(), "attempt", 0, "jobType", job.getJobType(),
+				"priority", job.getPriority().name());
 	}
 
 	@Transactional(readOnly = true)

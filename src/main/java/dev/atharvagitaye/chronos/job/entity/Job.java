@@ -98,6 +98,13 @@ public class Job {
 		leaseUntil = updatedAt.plusMillis(leaseDurationMs);
 	}
 
+	public void queue() {
+		if (status == JobStatus.CREATED) {
+			status = JobStatus.QUEUED;
+			updatedAt = Instant.now();
+		}
+	}
+
 	public void complete() {
 		status = JobStatus.SUCCESS;
 		completedAt = Instant.now();
