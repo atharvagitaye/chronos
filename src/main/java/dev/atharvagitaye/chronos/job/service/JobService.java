@@ -5,6 +5,7 @@ import dev.atharvagitaye.chronos.job.entity.Job;
 import dev.atharvagitaye.chronos.job.repository.JobRepository;
 import dev.atharvagitaye.chronos.outbox.OutboxEvent;
 import dev.atharvagitaye.chronos.outbox.OutboxRepository;
+import dev.atharvagitaye.chronos.monitoring.MetricsService;
 import java.util.Map;
 import java.util.List;
 import java.util.UUID;
@@ -17,10 +18,12 @@ public class JobService {
 
 	private final JobRepository jobRepository;
 	private final OutboxRepository outboxRepository;
+	private final MetricsService metricsService;
 
-	public JobService(JobRepository jobRepository, OutboxRepository outboxRepository) {
+	public JobService(JobRepository jobRepository, OutboxRepository outboxRepository, MetricsService metricsService) {
 		this.jobRepository = jobRepository;
 		this.outboxRepository = outboxRepository;
+		this.metricsService = metricsService;
 	}
 
 	@Transactional
@@ -31,6 +34,7 @@ public class JobService {
 		if (job.getScheduledAt() == null || !job.getScheduledAt().isAfter(java.time.Instant.now())) {
 			outboxRepository.save(new OutboxEvent(job.getId(), "JOB", "JOB_CREATED", messagePayload(job)));
 		}
+		metricsService.submitted(job.getJobType(), job.getPriority().name());
 		return job;
 	}
 

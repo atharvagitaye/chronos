@@ -7,6 +7,9 @@ import dev.atharvagitaye.chronos.retry.NonRetryableException;
 import dev.atharvagitaye.chronos.retry.RetryStrategy;
 import dev.atharvagitaye.chronos.retry.RetryableException;
 import dev.atharvagitaye.chronos.job.enums.JobStatus;
+import dev.atharvagitaye.chronos.monitoring.MetricsService;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.UUID;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
@@ -25,15 +28,17 @@ public class JobWorker {
 	private final RabbitTemplate rabbitTemplate;
 	private final RetryStrategy retryStrategy;
 	private final JobExecutionService executionService;
+	private final MetricsService metricsService;
 	private final long leaseDurationMs = 60000;
 
 	public JobWorker(JobRepository jobRepository, SimulatedJobHandler simulatedJobHandler, RabbitTemplate rabbitTemplate,
-			RetryStrategy retryStrategy, JobExecutionService executionService) {
+			RetryStrategy retryStrategy, JobExecutionService executionService, MetricsService metricsService) {
 		this.jobRepository = jobRepository;
 		this.simulatedJobHandler = simulatedJobHandler;
 		this.rabbitTemplate = rabbitTemplate;
 		this.retryStrategy = retryStrategy;
 		this.executionService = executionService;
+		this.metricsService = metricsService;
 	}
 
 	@RabbitListener(queues = { RabbitMqConfig.HIGH_QUEUE, RabbitMqConfig.MEDIUM_QUEUE, RabbitMqConfig.LOW_QUEUE },
@@ -55,16 +60,20 @@ public class JobWorker {
 			return;
 		}
 		try {
+			Instant processingStartedAt = Instant.now();
 			if (!"SIMULATED".equals(job.getJobType())) {
 				throw new NonRetryableException("Unsupported job type: " + job.getJobType());
 			}
 			simulatedJobHandler.execute(job.getPayload(), message.attempt());
 			job.complete();
 			executionService.complete(jobId, attemptNumber);
+			metricsService.completed(job.getJobType(), job.getPriority().name());
+			metricsService.processingTime(job.getJobType(), Duration.between(processingStartedAt, Instant.now()));
 		} catch (InterruptedException exception) {
 			Thread.currentThread().interrupt();
 			job.fail("Job interrupted");
 			executionService.fail(jobId, attemptNumber, "Job interrupted");
+			metricsService.failed(job.getJobType(), job.getPriority().name());
 		} catch (RetryableException exception) {
 			executionService.fail(jobId, attemptNumber, exception.getMessage());
 			if (job.getRetryCount() >= job.getMaxRetries()) {
@@ -72,6 +81,7 @@ public class JobWorker {
 				return;
 			}
 			job.retry(exception.getMessage());
+			metricsService.retried(job.getJobType(), job.getPriority().name());
 			rabbitTemplate.convertAndSend(retryQueue(job.getPriority().name()),
 				new JobMessage(job.getId(), job.getRetryCount(), job.getJobType(), job.getPriority().name()), retryMessage -> {
 					retryMessage.getMessageProperties().setExpiration(
@@ -81,9 +91,11 @@ public class JobWorker {
 		} catch (NonRetryableException exception) {
 			moveToDlq(job, exception.getMessage());
 			executionService.fail(jobId, attemptNumber, exception.getMessage());
+			metricsService.dlq(job.getJobType(), job.getPriority().name());
 		} catch (RuntimeException exception) {
 			job.fail(exception.getMessage());
 			executionService.fail(jobId, attemptNumber, exception.getMessage());
+			metricsService.failed(job.getJobType(), job.getPriority().name());
 		}
 	}
 

@@ -1,0 +1,17 @@
+{
+  "annotations": {"list": []},
+  "editable": false,
+  "panels": [
+    {"type": "stat", "title": "Jobs Submitted", "gridPos": {"h": 4, "w": 6, "x": 0, "y": 0}, "targets": [{"expr": "sum(chronos_jobs_submitted_total)"}]},
+    {"type": "stat", "title": "Jobs Completed", "gridPos": {"h": 4, "w": 6, "x": 6, "y": 0}, "targets": [{"expr": "sum(chronos_jobs_completed_total)"}]},
+    {"type": "stat", "title": "Jobs Failed", "gridPos": {"h": 4, "w": 6, "x": 12, "y": 0}, "targets": [{"expr": "sum(chronos_jobs_failed_total)"}]},
+    {"type": "stat", "title": "Jobs Retried", "gridPos": {"h": 4, "w": 6, "x": 18, "y": 0}, "targets": [{"expr": "sum(chronos_jobs_retried_total)"}]},
+    {"type": "timeseries", "title": "Job Submission Rate", "gridPos": {"h": 8, "w": 12, "x": 0, "y": 4}, "targets": [{"expr": "sum(rate(chronos_jobs_submitted_total[1m]))"}]},
+    {"type": "timeseries", "title": "Job Processing Duration", "gridPos": {"h": 8, "w": 12, "x": 12, "y": 4}, "targets": [{"expr": "sum(rate(chronos_job_processing_seconds_sum[1m])) / sum(rate(chronos_job_processing_seconds_count[1m]))"}]}
+  ],
+  "schemaVersion": 41,
+  "tags": ["chronos"],
+  "title": "Chronos Overview",
+  "uid": "chronos-overview",
+  "version": 1
+}

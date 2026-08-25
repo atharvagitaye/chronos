@@ -11,6 +11,7 @@ import dev.atharvagitaye.chronos.job.enums.JobStatus;
 import dev.atharvagitaye.chronos.job.repository.JobRepository;
 import dev.atharvagitaye.chronos.retry.RetryStrategy;
 import dev.atharvagitaye.chronos.retry.RetryableException;
+import dev.atharvagitaye.chronos.monitoring.MetricsService;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.amqp.core.MessagePostProcessor;
 import java.util.Map;
@@ -36,6 +37,9 @@ class JobWorkerTest {
 	@Mock
 	private JobExecutionService executionService;
 
+	@Mock
+	private MetricsService metricsService;
+
 	@Test
 	void processesSimulatedJobAndMarksItSuccessful() throws Exception {
 		Job job = new Job("SIMULATED", Map.of("durationMs", 0), JobPriority.HIGH, 3, null);
@@ -43,7 +47,7 @@ class JobWorkerTest {
 		when(jobRepository.findForUpdate(jobId)).thenReturn(Optional.of(job));
 
 		when(executionService.claim(jobId, 0)).thenReturn(true);
-		new JobWorker(jobRepository, simulatedJobHandler, rabbitTemplate, new RetryStrategy(2000, 30000), executionService)
+		new JobWorker(jobRepository, simulatedJobHandler, rabbitTemplate, new RetryStrategy(2000, 30000), executionService, metricsService)
 				.consume(new JobMessage(jobId, 0, "SIMULATED", "HIGH"));
 
 		assertEquals(JobStatus.SUCCESS, job.getStatus());
@@ -58,7 +62,7 @@ class JobWorkerTest {
 		doThrow(new RetryableException("temporary failure")).when(simulatedJobHandler).execute(job.getPayload(), 0);
 
 		when(executionService.claim(job.getId(), 0)).thenReturn(true);
-		new JobWorker(jobRepository, simulatedJobHandler, rabbitTemplate, new RetryStrategy(2000, 30000), executionService)
+		new JobWorker(jobRepository, simulatedJobHandler, rabbitTemplate, new RetryStrategy(2000, 30000), executionService, metricsService)
 				.consume(new JobMessage(job.getId(), 0, "SIMULATED", "HIGH"));
 
 		assertEquals(JobStatus.RETRYING, job.getStatus());
@@ -75,7 +79,7 @@ class JobWorkerTest {
 		doThrow(new RetryableException("permanent failure")).when(simulatedJobHandler).execute(job.getPayload(), 0);
 
 		when(executionService.claim(job.getId(), 0)).thenReturn(true);
-		new JobWorker(jobRepository, simulatedJobHandler, rabbitTemplate, new RetryStrategy(2000, 30000), executionService)
+		new JobWorker(jobRepository, simulatedJobHandler, rabbitTemplate, new RetryStrategy(2000, 30000), executionService, metricsService)
 				.consume(new JobMessage(job.getId(), 0, "SIMULATED", "LOW"));
 
 		assertEquals(JobStatus.DLQ, job.getStatus());
@@ -89,7 +93,7 @@ class JobWorkerTest {
 		when(jobRepository.findForUpdate(job.getId())).thenReturn(Optional.of(job));
 		when(executionService.claim(job.getId(), 0)).thenReturn(false);
 
-		new JobWorker(jobRepository, simulatedJobHandler, rabbitTemplate, new RetryStrategy(2000, 30000), executionService)
+		new JobWorker(jobRepository, simulatedJobHandler, rabbitTemplate, new RetryStrategy(2000, 30000), executionService, metricsService)
 				.consume(new JobMessage(job.getId(), 0, "SIMULATED", "HIGH"));
 
 		org.mockito.Mockito.verifyNoInteractions(simulatedJobHandler);

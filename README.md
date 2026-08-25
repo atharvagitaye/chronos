@@ -20,6 +20,7 @@ The current implementation provides a working REST API backed by PostgreSQL and 
 - Record one execution claim per job attempt to suppress duplicate deliveries
 - Recover expired worker leases through a new queued outbox event
 - Defer future jobs until the scheduler finds them due
+- Export Prometheus metrics through Spring Boot Actuator
 
 Jobs currently begin in `CREATED`. Worker deployment, monitoring, and Kubernetes infrastructure will be added in later verified slices.
 
@@ -122,3 +123,5 @@ The API is available at `http://localhost:8080`, while the worker runs the same 
 ```powershell
 docker compose -f docker-compose.full.yml down
 ```
+
+Prometheus is available at `http://localhost:9090`, and Grafana is available at `http://localhost:3000` with the development credentials from `.env.example`. The pre-provisioned `Chronos Overview` dashboard uses the API's `/actuator/prometheus` endpoint.
