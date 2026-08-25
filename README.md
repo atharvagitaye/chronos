@@ -2,27 +2,29 @@
 
 Chronos is a distributed task scheduler and asynchronous job execution platform built incrementally with Java 25 and Spring Boot.
 
-## Current Phase: 1 - Job persistence API
+## Current Slice: Job persistence and messaging boundary
 
-The first slice provides a working REST API backed by PostgreSQL:
+The current implementation provides a working REST API backed by PostgreSQL and a transactional messaging boundary:
 
 - Create a job with a JSON payload
 - Retrieve a job by UUID
 - List jobs with pagination
 - Validate job type, priority, and retry limits
 - Persist the schema with Flyway
+- Write a `JOB_CREATED` outbox event in the same transaction as the job
+- Publish pending outbox events to RabbitMQ using priority routing keys
 
-Jobs currently begin in `CREATED`. RabbitMQ publishing, workers, retries, idempotency, scheduling, and deployment infrastructure will be added in later verified phases.
+Jobs currently begin in `CREATED`. Workers, retries, idempotency, scheduling, and deployment infrastructure will be added in later verified slices.
 
 ## Requirements
 
 - Java 25
-- Docker, for PostgreSQL during local development
+- Docker, for PostgreSQL and RabbitMQ during local development
 - Maven Wrapper (`mvnw.cmd` on Windows)
 
-## Run the Phase 1 API
+## Run the API
 
-Start PostgreSQL with a local database named `chronos`, then run:
+Start PostgreSQL and RabbitMQ with Docker, then run:
 
 ```powershell
 .\mvnw.cmd spring-boot:run
@@ -36,7 +38,17 @@ Username: chronos
 Password: chronos
 ```
 
-Override them with `DATABASE_URL`, `DATABASE_USERNAME`, and `DATABASE_PASSWORD` environment variables. Flyway creates the `jobs` table on startup.
+RabbitMQ defaults:
+
+```text
+AMQP:      localhost:5672
+Username:  chronos
+Password:  chronos
+```
+
+Override database settings with `DATABASE_URL`, `DATABASE_USERNAME`, and `DATABASE_PASSWORD`. RabbitMQ settings use `RABBITMQ_HOST`, `RABBITMQ_PORT`, `RABBITMQ_USERNAME`, and `RABBITMQ_PASSWORD`. Set `CHRONOS_OUTBOX_PUBLISHER_ENABLED=false` when running only the API without RabbitMQ.
+
+The API transaction creates the job and its pending outbox event together. A scheduled publisher sends compact job messages to `chronos.job.exchange`, routing them to `chronos.high.queue`, `chronos.medium.queue`, or `chronos.low.queue`. Workers are not part of this slice yet.
 
 ## API examples
 
@@ -68,10 +80,10 @@ GET /api/v1/jobs?page=0&size=20
 
 ## Verify
 
-The test suite uses an in-memory H2 database:
+The test suite uses an in-memory H2 database and disables RabbitMQ publishing:
 
 ```powershell
 .\mvnw.cmd test
 ```
 
-The next implementation phase will introduce RabbitMQ and the outbox boundary while keeping this API contract tested and working.
+The next implementation slice will consume these messages with a bounded worker and acknowledge them using at-least-once delivery semantics.

@@ -5,6 +5,9 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import dev.atharvagitaye.chronos.outbox.OutboxEvent;
+import dev.atharvagitaye.chronos.outbox.OutboxRepository;
+import java.util.Comparator;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -18,6 +21,9 @@ class JobControllerTest {
 
 	@Autowired
 	private MockMvc mockMvc;
+
+	@Autowired
+	private OutboxRepository outboxRepository;
 
 	@Test
 	void createsAndRetrievesJob() throws Exception {
@@ -42,5 +48,18 @@ class JobControllerTest {
 				.content("{\"jobType\":\"SIMULATED\",\"payload\":{},\"priority\":\"LOW\",\"maxRetries\":11}"))
 				.andExpect(status().isBadRequest())
 				.andExpect(jsonPath("$.error").value("VALIDATION_ERROR"));
+	}
+
+	@Test
+	void createsAnOutboxEventWithTheJob() throws Exception {
+		mockMvc.perform(post("/api/v1/jobs").contentType(MediaType.APPLICATION_JSON)
+				.content("{\"jobType\":\"SIMULATED\",\"payload\":{},\"priority\":\"MEDIUM\"}"))
+				.andExpect(status().isCreated());
+
+		OutboxEvent event = outboxRepository.findAll().stream()
+				.max(Comparator.comparing(OutboxEvent::getCreatedAt)).orElseThrow();
+		org.junit.jupiter.api.Assertions.assertEquals(OutboxEvent.Status.PENDING, event.getStatus());
+		org.junit.jupiter.api.Assertions.assertEquals("JOB_CREATED", event.getEventType());
+		org.junit.jupiter.api.Assertions.assertEquals("MEDIUM", event.getPayload().get("priority"));
 	}
 }
