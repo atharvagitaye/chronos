@@ -47,6 +47,7 @@ class JobWorkerTest {
 				.consume(new JobMessage(jobId, 0, "SIMULATED", "HIGH"));
 
 		assertEquals(JobStatus.SUCCESS, job.getStatus());
+		org.junit.jupiter.api.Assertions.assertEquals(null, job.getLeaseUntil());
 		verify(simulatedJobHandler).execute(job.getPayload(), 0);
 	}
 
