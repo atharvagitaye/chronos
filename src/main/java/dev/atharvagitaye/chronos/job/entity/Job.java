@@ -81,6 +81,27 @@ public class Job {
 		this.updatedAt = this.createdAt;
 	}
 
+	public void start() {
+		if (status != JobStatus.CREATED && status != JobStatus.QUEUED) {
+			return;
+		}
+		status = JobStatus.RUNNING;
+		startedAt = Instant.now();
+		updatedAt = startedAt;
+	}
+
+	public void complete() {
+		status = JobStatus.SUCCESS;
+		completedAt = Instant.now();
+		updatedAt = completedAt;
+	}
+
+	public void fail(String error) {
+		status = JobStatus.FAILED;
+		lastError = error;
+		updatedAt = Instant.now();
+	}
+
 	public UUID getId() { return id; }
 	public String getJobType() { return jobType; }
 	public Map<String, Object> getPayload() { return payload; }

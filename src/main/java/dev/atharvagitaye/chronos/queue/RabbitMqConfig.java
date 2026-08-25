@@ -8,6 +8,7 @@ import org.springframework.amqp.rabbit.connection.ConnectionFactory;
 import org.springframework.amqp.rabbit.core.RabbitAdmin;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.amqp.support.converter.JacksonJsonMessageConverter;
 
 @Configuration
 public class RabbitMqConfig {
@@ -55,5 +56,10 @@ public class RabbitMqConfig {
 	@Bean
 	RabbitAdmin rabbitAdmin(ConnectionFactory connectionFactory) {
 		return new RabbitAdmin(connectionFactory);
+	}
+
+	@Bean
+	JacksonJsonMessageConverter messageConverter() {
+		return new JacksonJsonMessageConverter();
 	}
 }
