@@ -21,6 +21,7 @@ The current implementation provides a working REST API backed by PostgreSQL and 
 - Recover expired worker leases through a new queued outbox event
 - Defer future jobs until the scheduler finds them due
 - Export Prometheus metrics through Spring Boot Actuator
+- Support PostgreSQL-backed idempotent job submission
 
 Jobs currently begin in `CREATED`. Worker deployment, monitoring, and Kubernetes infrastructure will be added in later verified slices.
 
@@ -109,6 +110,8 @@ Execution idempotency stores a committed unique claim for each `(jobId, attemptN
 Workers hold a 60-second database lease in `locked_by` and `lease_until`. A scheduled recovery task finds expired `RUNNING` jobs, returns them to `QUEUED`, and writes a new outbox event with the next attempt number. This allows a crashed worker's work to be retried while preserving the original execution record.
 
 Jobs with a future `scheduledAt` are persisted as `CREATED` without an outbox event, so they cannot execute early. The scheduler polls PostgreSQL every second by default, locks due jobs, changes them to `QUEUED`, and creates a `JOB_SCHEDULED` outbox event. Configure the interval with `CHRONOS_SCHEDULER_INTERVAL_MS`.
+
+Send an `Idempotency-Key` header with `POST /api/v1/jobs` to make submission retry-safe. Reusing the key with the same request returns the original job; reusing it with a different request returns `409 IDEMPOTENCY_CONFLICT`. PostgreSQL stores the request fingerprint and enforces key uniqueness.
 
 ## Run the full Docker stack
 

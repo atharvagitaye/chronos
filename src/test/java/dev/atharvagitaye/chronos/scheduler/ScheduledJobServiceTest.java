@@ -12,6 +12,7 @@ import dev.atharvagitaye.chronos.job.enums.JobPriority;
 import dev.atharvagitaye.chronos.job.repository.JobRepository;
 import dev.atharvagitaye.chronos.job.service.JobService;
 import dev.atharvagitaye.chronos.monitoring.MetricsService;
+import dev.atharvagitaye.chronos.idempotency.IdempotencyRepository;
 import dev.atharvagitaye.chronos.outbox.OutboxEvent;
 import dev.atharvagitaye.chronos.outbox.OutboxRepository;
 import java.time.Instant;
@@ -35,6 +36,9 @@ class ScheduledJobServiceTest {
 	@Mock
 	private MetricsService metricsService;
 
+	@Mock
+	private IdempotencyRepository idempotencyRepository;
+
 	@Test
 	void queuesDueJobsThroughOutbox() {
 		Job job = new Job("SIMULATED", Map.of(), JobPriority.HIGH, 3, Instant.now().minusSeconds(1));
@@ -52,7 +56,7 @@ class ScheduledJobServiceTest {
 		CreateJobRequest request = new CreateJobRequest("SIMULATED", Map.of(), JobPriority.LOW, 3,
 				Instant.now().plusSeconds(60));
 
-		new JobService(jobRepository, outboxRepository, metricsService).create(request);
+		new JobService(jobRepository, outboxRepository, metricsService, idempotencyRepository).create(request, null);
 
 		verify(outboxRepository, never()).save(any());
 	}

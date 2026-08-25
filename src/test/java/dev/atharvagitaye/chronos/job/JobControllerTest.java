@@ -62,4 +62,30 @@ class JobControllerTest {
 		org.junit.jupiter.api.Assertions.assertEquals("JOB_CREATED", event.getEventType());
 		org.junit.jupiter.api.Assertions.assertEquals("MEDIUM", event.getPayload().get("priority"));
 	}
+
+	@Test
+	void returnsTheOriginalJobForARepeatedIdempotentRequest() throws Exception {
+		String request = "{\"jobType\":\"SIMULATED\",\"payload\":{},\"priority\":\"HIGH\"}";
+		String first = mockMvc.perform(post("/api/v1/jobs").header("Idempotency-Key", "request-1")
+				.contentType(MediaType.APPLICATION_JSON).content(request)).andExpect(status().isCreated()).andReturn()
+				.getResponse().getContentAsString();
+
+		mockMvc.perform(post("/api/v1/jobs").header("Idempotency-Key", "request-1")
+				.contentType(MediaType.APPLICATION_JSON).content(request)).andExpect(status().isCreated())
+				.andExpect(jsonPath("$.jobId").value(org.hamcrest.Matchers.containsString(
+						first.replaceAll(".*\"jobId\":\"([^\"]+)\".*", "$1"))));
+	}
+
+	@Test
+	void rejectsAnIdempotencyKeyWithADifferentRequest() throws Exception {
+		mockMvc.perform(post("/api/v1/jobs").header("Idempotency-Key", "request-2")
+				.contentType(MediaType.APPLICATION_JSON)
+				.content("{\"jobType\":\"SIMULATED\",\"payload\":{},\"priority\":\"HIGH\"}"))
+				.andExpect(status().isCreated());
+
+		mockMvc.perform(post("/api/v1/jobs").header("Idempotency-Key", "request-2")
+				.contentType(MediaType.APPLICATION_JSON)
+				.content("{\"jobType\":\"SIMULATED\",\"payload\":{\"durationMs\":1},\"priority\":\"HIGH\"}"))
+				.andExpect(status().isConflict()).andExpect(jsonPath("$.error").value("IDEMPOTENCY_CONFLICT"));
+	}
 }

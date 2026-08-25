@@ -135,7 +135,7 @@ public class Job {
 	}
 
 	public void recover() {
-		if (status == JobStatus.RUNNING && leaseUntil != null && leaseUntil.isBefore(Instant.now())) {
+		if (status == JobStatus.RUNNING && leaseUntil != null && !leaseUntil.isAfter(Instant.now())) {
 			status = JobStatus.QUEUED;
 			updatedAt = Instant.now();
 			clearLease();

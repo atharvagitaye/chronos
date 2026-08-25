@@ -2,6 +2,7 @@ package dev.atharvagitaye.chronos.common.exception;
 
 import dev.atharvagitaye.chronos.job.service.JobService.JobNotFoundException;
 import dev.atharvagitaye.chronos.dlq.DlqService;
+import dev.atharvagitaye.chronos.job.service.JobService.IdempotencyConflictException;
 import java.time.Instant;
 import java.util.Map;
 import org.springframework.http.HttpStatus;
@@ -26,6 +27,11 @@ public class ApiExceptionHandler {
 	@ExceptionHandler(IllegalStateException.class)
 	public ResponseEntity<Map<String, Object>> handleInvalidState(IllegalStateException exception) {
 		return error(HttpStatus.CONFLICT, "INVALID_JOB_STATE", exception.getMessage());
+	}
+
+	@ExceptionHandler(IdempotencyConflictException.class)
+	public ResponseEntity<Map<String, Object>> handleIdempotencyConflict(IdempotencyConflictException exception) {
+		return error(HttpStatus.CONFLICT, "IDEMPOTENCY_CONFLICT", exception.getMessage());
 	}
 
 	@ExceptionHandler(MethodArgumentNotValidException.class)
