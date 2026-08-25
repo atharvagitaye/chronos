@@ -1,0 +1,45 @@
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: chronos-worker
+  namespace: chronos
+spec:
+  scaleTargetRef:
+    name: chronos-worker
+  minReplicaCount: 2
+  maxReplicaCount: 10
+  pollingInterval: 15
+  cooldownPeriod: 60
+  triggers:
+    - type: rabbitmq
+      authenticationRef:
+        name: chronos-rabbitmq-auth
+      metadata:
+        queueName: chronos.high.queue
+        mode: QueueLength
+        value: "50"
+    - type: rabbitmq
+      authenticationRef:
+        name: chronos-rabbitmq-auth
+      metadata:
+        queueName: chronos.medium.queue
+        mode: QueueLength
+        value: "50"
+    - type: rabbitmq
+      authenticationRef:
+        name: chronos-rabbitmq-auth
+      metadata:
+        queueName: chronos.low.queue
+        mode: QueueLength
+        value: "50"
+---
+apiVersion: keda.sh/v1alpha1
+kind: TriggerAuthentication
+metadata:
+  name: chronos-rabbitmq-auth
+  namespace: chronos
+spec:
+  secretTargetRef:
+    - parameter: host
+      name: chronos-infrastructure
+      key: KEDA_RABBITMQ_HOST

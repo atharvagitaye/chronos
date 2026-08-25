@@ -1,0 +1,99 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: chronos-api
+  namespace: chronos
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: chronos-api
+  template:
+    metadata:
+      labels:
+        app: chronos-api
+    spec:
+      containers:
+        - name: chronos-api
+          image: ghcr.io/atharvagitaye/chronos:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8080
+          envFrom:
+            - configMapRef:
+                name: chronos-config
+            - secretRef:
+                name: chronos-infrastructure
+          env:
+            - name: CHRONOS_MODE
+              value: api
+          readinessProbe:
+            httpGet:
+              path: /actuator/health/readiness
+              port: http
+            initialDelaySeconds: 20
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /actuator/health/liveness
+              port: http
+            initialDelaySeconds: 30
+            periodSeconds: 20
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: chronos-worker
+  namespace: chronos
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: chronos-worker
+  template:
+    metadata:
+      labels:
+        app: chronos-worker
+    spec:
+      containers:
+        - name: chronos-worker
+          image: ghcr.io/atharvagitaye/chronos:latest
+          imagePullPolicy: IfNotPresent
+          envFrom:
+            - configMapRef:
+                name: chronos-config
+            - secretRef:
+                name: chronos-infrastructure
+          env:
+            - name: CHRONOS_MODE
+              value: worker
+          ports:
+            - name: http
+              containerPort: 8080
+          readinessProbe:
+            httpGet:
+              path: /actuator/health/readiness
+              port: http
+            initialDelaySeconds: 20
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /actuator/health/liveness
+              port: http
+            initialDelaySeconds: 30
+            periodSeconds: 20
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi

@@ -125,3 +125,15 @@ docker compose -f docker-compose.full.yml down
 ```
 
 Prometheus is available at `http://localhost:9090`, and Grafana is available at `http://localhost:3000` with the development credentials from `.env.example`. The pre-provisioned `Chronos Overview` dashboard uses the API's `/actuator/prometheus` endpoint.
+
+## Kubernetes and KEDA
+
+The Kubernetes manifests are in `infrastructure/kubernetes`. They deploy two API replicas and two worker replicas using the same image, with separate `CHRONOS_MODE` values. Before applying them, replace the example image `ghcr.io/atharvagitaye/chronos:latest` and the placeholder credentials in `secret.yaml` with values appropriate for the cluster. PostgreSQL, RabbitMQ, and Redis are expected to be reachable at the hostnames configured in that Secret.
+
+Install KEDA in the cluster, then apply the manifests:
+
+```powershell
+kubectl apply -f infrastructure/kubernetes
+```
+
+`keda-scaledobject.yaml` scales workers from 2 to 10 replicas using the HIGH, MEDIUM, and LOW RabbitMQ queue depths. This is a demonstration deployment, not a production-ready cluster configuration.
