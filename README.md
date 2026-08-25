@@ -21,17 +21,23 @@ The current implementation provides a working REST API backed by PostgreSQL and 
 - Recover expired worker leases through a new queued outbox event
 - Defer future jobs until the scheduler finds them due
 
-Jobs currently begin in `CREATED`. Workers, retries, idempotency, scheduling, and deployment infrastructure will be added in later verified slices.
+Jobs currently begin in `CREATED`. Worker deployment, monitoring, and Kubernetes infrastructure will be added in later verified slices.
 
 ## Requirements
 
 - Java 25
-- Docker, for PostgreSQL and RabbitMQ during local development
+- Docker Desktop, for PostgreSQL, RabbitMQ, and Redis during local development
 - Maven Wrapper (`mvnw.cmd` on Windows)
 
 ## Run the API
 
-Start PostgreSQL and RabbitMQ with Docker, then run:
+Start PostgreSQL, RabbitMQ, and Redis with Docker, then run:
+
+```powershell
+docker compose up -d
+```
+
+After the containers become healthy, run the API locally:
 
 ```powershell
 .\mvnw.cmd spring-boot:run
@@ -53,9 +59,11 @@ Username:  chronos
 Password:  chronos
 ```
 
+RabbitMQ Management UI: `http://localhost:15672`. Redis is available at `localhost:6379`. Copy `.env.example` to `.env` only when you need to override the development defaults; do not use these credentials in production.
+
 Override database settings with `DATABASE_URL`, `DATABASE_USERNAME`, and `DATABASE_PASSWORD`. RabbitMQ settings use `RABBITMQ_HOST`, `RABBITMQ_PORT`, `RABBITMQ_USERNAME`, and `RABBITMQ_PASSWORD`. Set `CHRONOS_OUTBOX_PUBLISHER_ENABLED=false` when running only the API without RabbitMQ.
 
-The API transaction creates the job and its pending outbox event together. A scheduled publisher sends compact job messages to `chronos.job.exchange`, routing them to `chronos.high.queue`, `chronos.medium.queue`, or `chronos.low.queue`. Workers are not part of this slice yet.
+The API transaction creates the job and its pending outbox event together. A scheduled publisher sends compact job messages to `chronos.job.exchange`, routing them to `chronos.high.queue`, `chronos.medium.queue`, or `chronos.low.queue`. The local worker runs from the Maven application; Docker Compose provides the infrastructure dependencies.
 
 ## API examples
 
