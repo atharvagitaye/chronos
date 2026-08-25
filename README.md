@@ -28,7 +28,7 @@ Jobs currently begin in `CREATED`. Worker deployment, monitoring, and Kubernetes
 ## Requirements
 
 - Java 25
-- Docker Desktop, for PostgreSQL, RabbitMQ, and Redis during local development
+- Docker Desktop, for PostgreSQL, RabbitMQ, and Redis during local development and Testcontainers integration tests
 - Maven Wrapper (`mvnw.cmd` on Windows)
 
 ## Run the API
@@ -102,6 +102,8 @@ The test suite uses an in-memory H2 database and disables RabbitMQ publishing:
 ```powershell
 .\mvnw.cmd test
 ```
+
+The test suite also includes a PostgreSQL Testcontainers integration test. It starts a disposable `postgres:16-alpine` container, applies every Flyway migration, and verifies job, outbox, and idempotency persistence. Docker Desktop must be running for this test.
 
 Retryable simulated failures are republished to a priority-specific RabbitMQ retry queue with per-message expiration. The delay starts at 2 seconds and doubles up to the configured maximum, with 10% jitter to reduce retry synchronization. The retry queue dead-letters the message back to the original priority queue. Unsupported job types are non-retryable and, like exhausted retries, are recorded as `DLQ` and sent to `chronos.dlq`. `GET /api/v1/dlq/jobs` lists these jobs; `POST /api/v1/dlq/jobs/{jobId}/replay` resets the job and creates a new outbox event for normal processing.
 
