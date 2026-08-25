@@ -22,13 +22,15 @@ public class JobWorker {
 	private final SimulatedJobHandler simulatedJobHandler;
 	private final RabbitTemplate rabbitTemplate;
 	private final RetryStrategy retryStrategy;
+	private final JobExecutionService executionService;
 
 	public JobWorker(JobRepository jobRepository, SimulatedJobHandler simulatedJobHandler, RabbitTemplate rabbitTemplate,
-			RetryStrategy retryStrategy) {
+			RetryStrategy retryStrategy, JobExecutionService executionService) {
 		this.jobRepository = jobRepository;
 		this.simulatedJobHandler = simulatedJobHandler;
 		this.rabbitTemplate = rabbitTemplate;
 		this.retryStrategy = retryStrategy;
+		this.executionService = executionService;
 	}
 
 	@RabbitListener(queues = { RabbitMqConfig.HIGH_QUEUE, RabbitMqConfig.MEDIUM_QUEUE, RabbitMqConfig.LOW_QUEUE },
@@ -38,6 +40,10 @@ public class JobWorker {
 		UUID jobId = message.jobId();
 		Job job = jobRepository.findForUpdate(jobId).orElse(null);
 		if (job == null || job.getStatus() == dev.atharvagitaye.chronos.job.enums.JobStatus.SUCCESS) {
+			return;
+		}
+		int attemptNumber = message.attempt();
+		if (!executionService.claim(jobId, attemptNumber)) {
 			return;
 		}
 
@@ -51,10 +57,13 @@ public class JobWorker {
 			}
 			simulatedJobHandler.execute(job.getPayload(), message.attempt());
 			job.complete();
+			executionService.complete(jobId, attemptNumber);
 		} catch (InterruptedException exception) {
 			Thread.currentThread().interrupt();
 			job.fail("Job interrupted");
+			executionService.fail(jobId, attemptNumber, "Job interrupted");
 		} catch (RetryableException exception) {
+			executionService.fail(jobId, attemptNumber, exception.getMessage());
 			if (job.getRetryCount() >= job.getMaxRetries()) {
 				moveToDlq(job, exception.getMessage());
 				return;
@@ -68,8 +77,10 @@ public class JobWorker {
 				});
 		} catch (NonRetryableException exception) {
 			moveToDlq(job, exception.getMessage());
+			executionService.fail(jobId, attemptNumber, exception.getMessage());
 		} catch (RuntimeException exception) {
 			job.fail(exception.getMessage());
+			executionService.fail(jobId, attemptNumber, exception.getMessage());
 		}
 	}
 

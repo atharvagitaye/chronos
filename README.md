@@ -17,6 +17,7 @@ The current implementation provides a working REST API backed by PostgreSQL and 
 - Retry transient simulated failures with exponential backoff and jitter
 - Route exhausted and non-retryable failures to a durable DLQ
 - Replay DLQ jobs through the transactional outbox
+- Record one execution claim per job attempt to suppress duplicate deliveries
 
 Jobs currently begin in `CREATED`. Workers, retries, idempotency, scheduling, and deployment infrastructure will be added in later verified slices.
 
@@ -91,3 +92,5 @@ The test suite uses an in-memory H2 database and disables RabbitMQ publishing:
 ```
 
 Retryable simulated failures are republished to a priority-specific RabbitMQ retry queue with per-message expiration. The delay starts at 2 seconds and doubles up to the configured maximum, with 10% jitter to reduce retry synchronization. The retry queue dead-letters the message back to the original priority queue. Unsupported job types are non-retryable and, like exhausted retries, are recorded as `DLQ` and sent to `chronos.dlq`. `GET /api/v1/dlq/jobs` lists these jobs; `POST /api/v1/dlq/jobs/{jobId}/replay` resets the job and creates a new outbox event for normal processing.
+
+Execution idempotency stores a committed unique claim for each `(jobId, attemptNumber)` before the handler runs. A duplicate RabbitMQ delivery sees the existing claim and is acknowledged without invoking the handler again. Delivery remains at-least-once; recovery of a worker that dies while holding a `RUNNING` claim is handled by the upcoming lease/recovery slice.

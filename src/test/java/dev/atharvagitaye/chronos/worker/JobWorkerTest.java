@@ -33,13 +33,17 @@ class JobWorkerTest {
 	@Mock
 	private RabbitTemplate rabbitTemplate;
 
+	@Mock
+	private JobExecutionService executionService;
+
 	@Test
 	void processesSimulatedJobAndMarksItSuccessful() throws Exception {
 		Job job = new Job("SIMULATED", Map.of("durationMs", 0), JobPriority.HIGH, 3, null);
 		UUID jobId = job.getId();
 		when(jobRepository.findForUpdate(jobId)).thenReturn(Optional.of(job));
 
-		new JobWorker(jobRepository, simulatedJobHandler, rabbitTemplate, new RetryStrategy(2000, 30000))
+		when(executionService.claim(jobId, 0)).thenReturn(true);
+		new JobWorker(jobRepository, simulatedJobHandler, rabbitTemplate, new RetryStrategy(2000, 30000), executionService)
 				.consume(new JobMessage(jobId, 0, "SIMULATED", "HIGH"));
 
 		assertEquals(JobStatus.SUCCESS, job.getStatus());
@@ -52,7 +56,8 @@ class JobWorkerTest {
 		when(jobRepository.findForUpdate(job.getId())).thenReturn(Optional.of(job));
 		doThrow(new RetryableException("temporary failure")).when(simulatedJobHandler).execute(job.getPayload(), 0);
 
-		new JobWorker(jobRepository, simulatedJobHandler, rabbitTemplate, new RetryStrategy(2000, 30000))
+		when(executionService.claim(job.getId(), 0)).thenReturn(true);
+		new JobWorker(jobRepository, simulatedJobHandler, rabbitTemplate, new RetryStrategy(2000, 30000), executionService)
 				.consume(new JobMessage(job.getId(), 0, "SIMULATED", "HIGH"));
 
 		assertEquals(JobStatus.RETRYING, job.getStatus());
@@ -68,11 +73,24 @@ class JobWorkerTest {
 		when(jobRepository.findForUpdate(job.getId())).thenReturn(Optional.of(job));
 		doThrow(new RetryableException("permanent failure")).when(simulatedJobHandler).execute(job.getPayload(), 0);
 
-		new JobWorker(jobRepository, simulatedJobHandler, rabbitTemplate, new RetryStrategy(2000, 30000))
+		when(executionService.claim(job.getId(), 0)).thenReturn(true);
+		new JobWorker(jobRepository, simulatedJobHandler, rabbitTemplate, new RetryStrategy(2000, 30000), executionService)
 				.consume(new JobMessage(job.getId(), 0, "SIMULATED", "LOW"));
 
 		assertEquals(JobStatus.DLQ, job.getStatus());
 		verify(rabbitTemplate).convertAndSend(org.mockito.ArgumentMatchers.eq("chronos.dlq"),
 				org.mockito.ArgumentMatchers.any(JobMessage.class));
+	}
+
+	@Test
+	void skipsDuplicateDeliveryForTheSameAttempt() {
+		Job job = new Job("SIMULATED", Map.of(), JobPriority.HIGH, 3, null);
+		when(jobRepository.findForUpdate(job.getId())).thenReturn(Optional.of(job));
+		when(executionService.claim(job.getId(), 0)).thenReturn(false);
+
+		new JobWorker(jobRepository, simulatedJobHandler, rabbitTemplate, new RetryStrategy(2000, 30000), executionService)
+				.consume(new JobMessage(job.getId(), 0, "SIMULATED", "HIGH"));
+
+		org.mockito.Mockito.verifyNoInteractions(simulatedJobHandler);
 	}
 }
