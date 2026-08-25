@@ -1,0 +1,81 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-chronos}
+      POSTGRES_USER: ${POSTGRES_USER:-chronos}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-chronos}
+    volumes:
+      - chronos-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  rabbitmq:
+    image: rabbitmq:4-management-alpine
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USERNAME:-chronos}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:-chronos}
+    volumes:
+      - chronos-rabbitmq-data:/var/lib/rabbitmq
+    ports:
+      - "${RABBITMQ_MANAGEMENT_PORT:-15672}:15672"
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    volumes:
+      - chronos-redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  chronos-api:
+    build: .
+    environment:
+      CHRONOS_MODE: api
+      DATABASE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-chronos}
+      DATABASE_USERNAME: ${POSTGRES_USER:-chronos}
+      DATABASE_PASSWORD: ${POSTGRES_PASSWORD:-chronos}
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PORT: 5672
+      RABBITMQ_USERNAME: ${RABBITMQ_USERNAME:-chronos}
+      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:-chronos}
+    ports:
+      - "${CHRONOS_API_PORT:-8080}:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+
+  chronos-worker:
+    build: .
+    environment:
+      CHRONOS_MODE: worker
+      DATABASE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-chronos}
+      DATABASE_USERNAME: ${POSTGRES_USER:-chronos}
+      DATABASE_PASSWORD: ${POSTGRES_PASSWORD:-chronos}
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PORT: 5672
+      RABBITMQ_USERNAME: ${RABBITMQ_USERNAME:-chronos}
+      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:-chronos}
+      CHRONOS_WORKER_CONCURRENCY: ${CHRONOS_WORKER_CONCURRENCY:-4}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+
+volumes:
+  chronos-postgres-data:
+  chronos-rabbitmq-data:
+  chronos-redis-data:

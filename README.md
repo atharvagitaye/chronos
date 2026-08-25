@@ -108,3 +108,17 @@ Execution idempotency stores a committed unique claim for each `(jobId, attemptN
 Workers hold a 60-second database lease in `locked_by` and `lease_until`. A scheduled recovery task finds expired `RUNNING` jobs, returns them to `QUEUED`, and writes a new outbox event with the next attempt number. This allows a crashed worker's work to be retried while preserving the original execution record.
 
 Jobs with a future `scheduledAt` are persisted as `CREATED` without an outbox event, so they cannot execute early. The scheduler polls PostgreSQL every second by default, locks due jobs, changes them to `QUEUED`, and creates a `JOB_SCHEDULED` outbox event. Configure the interval with `CHRONOS_SCHEDULER_INTERVAL_MS`.
+
+## Run the full Docker stack
+
+To run the API and worker as separate containers:
+
+```powershell
+docker compose -f docker-compose.full.yml up --build
+```
+
+The API is available at `http://localhost:8080`, while the worker runs the same image with `CHRONOS_MODE=worker`. The API runs with `CHRONOS_MODE=api`, so only it publishes the outbox and schedules future jobs. Stop the stack with:
+
+```powershell
+docker compose -f docker-compose.full.yml down
+```

@@ -12,9 +12,11 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
 
 @Service
 @ConditionalOnProperty(name = "chronos.worker.enabled", havingValue = "true", matchIfMissing = true)
+@ConditionalOnExpression("'${chronos.mode:all}' == 'all' or '${chronos.mode:all}' == 'worker'")
 public class LeaseRecoveryService {
 
 	private final JobRepository jobRepository;
