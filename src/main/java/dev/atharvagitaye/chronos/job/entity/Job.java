@@ -159,6 +159,27 @@ public class Job {
 		updatedAt = Instant.now();
 	}
 
+	public void cancel() {
+		if (status == JobStatus.SUCCESS || status == JobStatus.CANCELLED) {
+			throw new IllegalStateException("Cannot cancel a job in state: " + status);
+		}
+		status = JobStatus.CANCELLED;
+		updatedAt = Instant.now();
+		clearLease();
+	}
+
+	public void retryManually() {
+		if (status != JobStatus.FAILED && status != JobStatus.CANCELLED && status != JobStatus.DLQ) {
+			throw new IllegalStateException("Only FAILED, CANCELLED, or DLQ jobs can be manually retried");
+		}
+		status = JobStatus.CREATED;
+		retryCount = 0;
+		lastError = null;
+		startedAt = null;
+		completedAt = null;
+		updatedAt = Instant.now();
+	}
+
 	public UUID getId() { return id; }
 	public String getJobType() { return jobType; }
 	public Map<String, Object> getPayload() { return payload; }

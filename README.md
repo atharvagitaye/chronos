@@ -103,11 +103,11 @@ The test suite uses an in-memory H2 database and disables RabbitMQ publishing:
 .\mvnw.cmd test
 ```
 
-The test suite also includes PostgreSQL and RabbitMQ Testcontainers integration tests. They start disposable `postgres:16-alpine` and `rabbitmq:4-management-alpine` containers, apply every Flyway migration, and verify persistence plus the asynchronous API -> outbox -> RabbitMQ -> worker -> `SUCCESS` flow. Docker Desktop must be running for these tests.
+The test suite also includes PostgreSQL and RabbitMQ Testcontainers integration tests. They start disposable `postgres:16-alpine` and `rabbitmq:4-management-alpine` containers, apply every Flyway migration, and verify persistence plus asynchronous success, retry, DLQ, replay, duplicate-delivery, scheduled-job, and lease-recovery flows. Docker Desktop must be running for these tests.
 
 Retryable simulated failures are republished to a priority-specific RabbitMQ retry queue with per-message expiration. The delay starts at 2 seconds and doubles up to the configured maximum, with 10% jitter to reduce retry synchronization. The retry queue dead-letters the message back to the original priority queue. Unsupported job types are non-retryable and, like exhausted retries, are recorded as `DLQ` and sent to `chronos.dlq`. `GET /api/v1/dlq/jobs` lists these jobs; `POST /api/v1/dlq/jobs/{jobId}/replay` resets the job and creates a new outbox event for normal processing.
 
-Execution idempotency stores a committed unique claim for each `(jobId, attemptNumber)` before the handler runs. A duplicate RabbitMQ delivery sees the existing claim and is acknowledged without invoking the handler again. Delivery remains at-least-once; recovery of a worker that dies while holding a `RUNNING` claim is handled by the upcoming lease/recovery slice.
+Execution idempotency stores a committed unique claim for each `(jobId, attemptNumber)` before the handler runs. A duplicate RabbitMQ delivery sees the existing claim and is acknowledged without invoking the handler again. Delivery remains at-least-once; if a worker dies while holding a `RUNNING` claim, lease recovery re-queues the job through the outbox with a new attempt number.
 
 Workers hold a 60-second database lease in `locked_by` and `lease_until`. A scheduled recovery task finds expired `RUNNING` jobs, returns them to `QUEUED`, and writes a new outbox event with the next attempt number. This allows a crashed worker's work to be retried while preserving the original execution record.
 

@@ -1,6 +1,7 @@
 package dev.atharvagitaye.chronos.job.service;
 
 import dev.atharvagitaye.chronos.job.dto.CreateJobRequest;
+import dev.atharvagitaye.chronos.job.dto.JobSearchCriteria;
 import dev.atharvagitaye.chronos.job.entity.Job;
 import dev.atharvagitaye.chronos.job.repository.JobRepository;
 import dev.atharvagitaye.chronos.outbox.OutboxEvent;
@@ -14,6 +15,10 @@ import java.security.NoSuchAlgorithmException;
 import java.util.Map;
 import java.util.List;
 import java.util.UUID;
+import java.util.ArrayList;
+import jakarta.persistence.criteria.Predicate;
+import org.springframework.data.domain.Page;
+import org.springframework.data.jpa.domain.Specification;
 import java.util.Collection;
 import java.util.stream.Collectors;
 import org.springframework.data.domain.Pageable;
@@ -104,8 +109,42 @@ public class JobService {
 	}
 
 	@Transactional(readOnly = true)
-	public List<Job> list(Pageable pageable) {
-		return jobRepository.findAll(pageable).getContent();
+	public Page<Job> list(JobSearchCriteria criteria, Pageable pageable) {
+		Specification<Job> spec = (root, query, cb) -> {
+			List<Predicate> predicates = new ArrayList<>();
+			if (criteria.status() != null) {
+				predicates.add(cb.equal(root.get("status"), criteria.status()));
+			}
+			if (criteria.jobType() != null && !criteria.jobType().isBlank()) {
+				predicates.add(cb.equal(root.get("jobType"), criteria.jobType()));
+			}
+			if (criteria.priority() != null) {
+				predicates.add(cb.equal(root.get("priority"), criteria.priority()));
+			}
+			if (criteria.createdAfter() != null) {
+				predicates.add(cb.greaterThanOrEqualTo(root.get("createdAt"), criteria.createdAfter()));
+			}
+			if (criteria.createdBefore() != null) {
+				predicates.add(cb.lessThanOrEqualTo(root.get("createdAt"), criteria.createdBefore()));
+			}
+			return cb.and(predicates.toArray(new Predicate[0]));
+		};
+		return jobRepository.findAll(spec, pageable);
+	}
+
+	@Transactional
+	public Job cancel(UUID jobId) {
+		Job job = jobRepository.findForUpdate(jobId).orElseThrow(() -> new JobNotFoundException(jobId));
+		job.cancel();
+		return job;
+	}
+
+	@Transactional
+	public Job retry(UUID jobId) {
+		Job job = jobRepository.findForUpdate(jobId).orElseThrow(() -> new JobNotFoundException(jobId));
+		job.retryManually();
+		outboxRepository.save(new OutboxEvent(job.getId(), "JOB", "JOB_REPLAYED", messagePayload(job)));
+		return job;
 	}
 
 	public static class JobNotFoundException extends RuntimeException {

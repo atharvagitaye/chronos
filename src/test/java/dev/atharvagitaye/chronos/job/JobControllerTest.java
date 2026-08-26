@@ -88,4 +88,41 @@ class JobControllerTest {
 				.content("{\"jobType\":\"SIMULATED\",\"payload\":{\"durationMs\":1},\"priority\":\"HIGH\"}"))
 				.andExpect(status().isConflict()).andExpect(jsonPath("$.error").value("IDEMPOTENCY_CONFLICT"));
 	}
+
+	@Test
+	void cancelsJob() throws Exception {
+		String request = "{\"jobType\":\"SIMULATED\",\"payload\":{},\"priority\":\"LOW\"}";
+		String response = mockMvc.perform(post("/api/v1/jobs").contentType(MediaType.APPLICATION_JSON).content(request))
+				.andExpect(status().isCreated()).andReturn().getResponse().getContentAsString();
+		String jobId = response.replaceAll(".*\\\"jobId\\\":\\\"([^\\\"]+)\\\".*", "$1");
+
+		mockMvc.perform(post("/api/v1/jobs/{jobId}/cancel", jobId))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.status").value("CANCELLED"));
+	}
+
+	@Test
+	void retriesJob_rejectsInvalidTransition() throws Exception {
+		// A CREATED job cannot be manually retried; that is only valid for FAILED/CANCELLED/DLQ jobs.
+		// The exception handler maps IllegalStateException to 409 CONFLICT.
+		String request = "{\"jobType\":\"SIMULATED\",\"payload\":{},\"priority\":\"LOW\"}";
+		String response = mockMvc.perform(post("/api/v1/jobs").contentType(MediaType.APPLICATION_JSON).content(request))
+				.andExpect(status().isCreated()).andReturn().getResponse().getContentAsString();
+		String jobId = response.replaceAll(".*\\\"jobId\\\":\\\"([^\\\"]+)\\\".*", "$1");
+
+		mockMvc.perform(post("/api/v1/jobs/{jobId}/retry", jobId))
+				.andExpect(status().isConflict())
+				.andExpect(jsonPath("$.error").value("INVALID_JOB_STATE"));
+	}
+
+	@Test
+	void listsAndFiltersJobs() throws Exception {
+		mockMvc.perform(post("/api/v1/jobs").contentType(MediaType.APPLICATION_JSON)
+				.content("{\"jobType\":\"FILTER_ME\",\"payload\":{},\"priority\":\"MEDIUM\"}"));
+
+		mockMvc.perform(get("/api/v1/jobs?jobType=FILTER_ME&priority=MEDIUM"))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.content").isArray())
+				.andExpect(jsonPath("$.totalElements").isNumber());
+	}
 }

@@ -3,6 +3,7 @@ package dev.atharvagitaye.chronos.job.repository;
 import dev.atharvagitaye.chronos.job.entity.Job;
 import java.util.UUID;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Lock;
 import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.Query;
@@ -12,7 +13,7 @@ import org.springframework.data.domain.Pageable;
 import java.time.Instant;
 import java.util.List;
 
-public interface JobRepository extends JpaRepository<Job, UUID> {
+public interface JobRepository extends JpaRepository<Job, UUID>, JpaSpecificationExecutor<Job> {
 
 	@Lock(LockModeType.PESSIMISTIC_WRITE)
 	@Query("select job from Job job where job.id = :jobId")
