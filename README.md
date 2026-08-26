@@ -159,6 +159,8 @@ kubectl apply -f infrastructure/kubernetes
 
 `keda-scaledobject.yaml` scales workers from 2 to 10 replicas using the HIGH, MEDIUM, and LOW RabbitMQ queue depths. This is a demonstration deployment, not a production-ready cluster configuration.
 
+For a static manifest rendering check, run `kubectl kustomize infrastructure/kubernetes`. A live `kubectl apply` also requires a configured Kubernetes context and the KEDA CRDs installed in the target cluster.
+
 ## Load testing
 
 Use the Windows-friendly load script against a local or disposable environment:
@@ -168,3 +170,5 @@ Use the Windows-friendly load script against a local or disposable environment:
 ```
 
 The script reports observed submission time, throughput, terminal job counts, and completion time when polling is enabled. Inspect queue depth, retries, DLQ count, and worker behavior in Prometheus/Grafana during the run; no benchmark result is claimed until it has been measured on the target machine.
+
+A measured local 100-job Compose run is recorded in [load-test-results.md](docs/load-test-results.md). It is a development observation, not a production benchmark.

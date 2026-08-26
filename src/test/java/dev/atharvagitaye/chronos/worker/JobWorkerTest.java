@@ -85,6 +85,7 @@ class JobWorkerTest {
 		assertEquals(JobStatus.DLQ, job.getStatus());
 		verify(rabbitTemplate).convertAndSend(org.mockito.ArgumentMatchers.eq("chronos.dlq"),
 				org.mockito.ArgumentMatchers.any(JobMessage.class));
+		verify(metricsService).dlq("SIMULATED", "LOW");
 	}
 
 	@Test

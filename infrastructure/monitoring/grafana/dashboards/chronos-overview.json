@@ -2,16 +2,103 @@
   "annotations": {"list": []},
   "editable": false,
   "panels": [
-    {"type": "stat", "title": "Jobs Submitted", "gridPos": {"h": 4, "w": 6, "x": 0, "y": 0}, "targets": [{"expr": "sum(chronos_jobs_submitted_total)"}]},
-    {"type": "stat", "title": "Jobs Completed", "gridPos": {"h": 4, "w": 6, "x": 6, "y": 0}, "targets": [{"expr": "sum(chronos_jobs_completed_total)"}]},
-    {"type": "stat", "title": "Jobs Failed", "gridPos": {"h": 4, "w": 6, "x": 12, "y": 0}, "targets": [{"expr": "sum(chronos_jobs_failed_total)"}]},
-    {"type": "stat", "title": "Jobs Retried", "gridPos": {"h": 4, "w": 6, "x": 18, "y": 0}, "targets": [{"expr": "sum(chronos_jobs_retried_total)"}]},
-    {"type": "timeseries", "title": "Job Submission Rate", "gridPos": {"h": 8, "w": 12, "x": 0, "y": 4}, "targets": [{"expr": "sum(rate(chronos_jobs_submitted_total[1m]))"}]},
-    {"type": "timeseries", "title": "Job Processing Duration", "gridPos": {"h": 8, "w": 12, "x": 12, "y": 4}, "targets": [{"expr": "sum(rate(chronos_job_processing_seconds_sum[1m])) / sum(rate(chronos_job_processing_seconds_count[1m]))"}]}
+    {
+      "type": "stat", "title": "Jobs Submitted", "id": 1,
+      "gridPos": {"h": 4, "w": 4, "x": 0, "y": 0},
+      "targets": [{"expr": "sum(chronos_jobs_submitted_total)", "legendFormat": "submitted"}],
+      "options": {"colorMode": "value", "graphMode": "area"}
+    },
+    {
+      "type": "stat", "title": "Jobs Completed", "id": 2,
+      "gridPos": {"h": 4, "w": 4, "x": 4, "y": 0},
+      "targets": [{"expr": "sum(chronos_jobs_completed_total)", "legendFormat": "completed"}],
+      "options": {"colorMode": "value", "graphMode": "area"}
+    },
+    {
+      "type": "stat", "title": "Jobs Failed", "id": 3,
+      "gridPos": {"h": 4, "w": 4, "x": 8, "y": 0},
+      "targets": [{"expr": "sum(chronos_jobs_failed_total)", "legendFormat": "failed"}],
+      "options": {"colorMode": "value", "graphMode": "area"}
+    },
+    {
+      "type": "stat", "title": "Jobs Retried", "id": 4,
+      "gridPos": {"h": 4, "w": 4, "x": 12, "y": 0},
+      "targets": [{"expr": "sum(chronos_jobs_retried_total)", "legendFormat": "retried"}],
+      "options": {"colorMode": "value", "graphMode": "area"}
+    },
+    {
+      "type": "stat", "title": "Jobs in DLQ", "id": 5,
+      "gridPos": {"h": 4, "w": 4, "x": 16, "y": 0},
+      "targets": [{"expr": "sum(chronos_jobs_dlq_total)", "legendFormat": "dlq"}],
+      "options": {"colorMode": "background", "graphMode": "none"},
+      "fieldConfig": {"defaults": {"thresholds": {"steps": [{"color": "green", "value": 0}, {"color": "red", "value": 1}]}}}
+    },
+    {
+      "type": "stat", "title": "Jobs Cancelled", "id": 6,
+      "gridPos": {"h": 4, "w": 4, "x": 20, "y": 0},
+      "targets": [{"expr": "sum(chronos_jobs_cancelled_total)", "legendFormat": "cancelled"}],
+      "options": {"colorMode": "value", "graphMode": "area"}
+    },
+    {
+      "type": "bargauge", "title": "Queue Depth by Priority", "id": 7,
+      "gridPos": {"h": 8, "w": 8, "x": 0, "y": 4},
+      "targets": [{"expr": "chronos_queue_depth", "legendFormat": "{{priority}}"}],
+      "options": {"orientation": "horizontal", "displayMode": "gradient"},
+      "fieldConfig": {"defaults": {"thresholds": {"steps": [{"color": "green", "value": 0}, {"color": "yellow", "value": 100}, {"color": "red", "value": 500}]}}}
+    },
+    {
+      "type": "timeseries", "title": "Job Submission Rate (per minute)", "id": 8,
+      "gridPos": {"h": 8, "w": 8, "x": 8, "y": 4},
+      "targets": [
+        {"expr": "sum by (priority) (rate(chronos_jobs_submitted_total[1m]))", "legendFormat": "{{priority}}"}
+      ]
+    },
+    {
+      "type": "timeseries", "title": "Average Job Processing Duration", "id": 9,
+      "gridPos": {"h": 8, "w": 8, "x": 16, "y": 4},
+      "targets": [
+        {"expr": "sum(rate(chronos_job_processing_seconds_sum[5m])) by (job_type) / sum(rate(chronos_job_processing_seconds_count[5m])) by (job_type)", "legendFormat": "{{job_type}}"}
+      ]
+    },
+    {
+      "type": "timeseries", "title": "Job Wait Time (submission → worker pickup, p50/p95)", "id": 10,
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 12},
+      "targets": [
+        {"expr": "sum(rate(chronos_job_wait_seconds_sum[5m])) by (priority) / sum(rate(chronos_job_wait_seconds_count[5m])) by (priority)", "legendFormat": "{{priority}}"}
+      ]
+    },
+    {
+      "type": "timeseries", "title": "DLQ Rate (jobs/min entering DLQ)", "id": 11,
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 12},
+      "targets": [
+        {"expr": "sum by (job_type) (rate(chronos_jobs_dlq_total[1m]))", "legendFormat": "{{job_type}}"}
+      ],
+      "fieldConfig": {"defaults": {"thresholds": {"steps": [{"color": "green", "value": 0}, {"color": "red", "value": 0.1}]}}}
+    },
+    {
+      "type": "timeseries", "title": "Retry Rate (jobs/min being retried)", "id": 12,
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 20},
+      "targets": [
+        {"expr": "sum by (priority) (rate(chronos_jobs_retried_total[1m]))", "legendFormat": "{{priority}}"}
+      ]
+    },
+    {
+      "type": "timeseries", "title": "Queue Depth Over Time", "id": 13,
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 20},
+      "targets": [
+        {"expr": "chronos_queue_depth", "legendFormat": "{{priority}}"}
+      ]
+    },
+    {
+      "type": "stat", "title": "Active Workers", "id": 14,
+      "gridPos": {"h": 4, "w": 6, "x": 0, "y": 28},
+      "targets": [{"expr": "sum(chronos_worker_active)"}],
+      "options": {"colorMode": "value", "graphMode": "area"}
+    }
   ],
   "schemaVersion": 41,
   "tags": ["chronos"],
   "title": "Chronos Overview",
   "uid": "chronos-overview",
-  "version": 1
+  "version": 2
 }

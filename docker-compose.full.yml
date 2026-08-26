@@ -49,6 +49,8 @@ services:
       RABBITMQ_PORT: 5672
       RABBITMQ_USERNAME: ${RABBITMQ_USERNAME:-chronos}
       RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:-chronos}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
     ports:
       - "${CHRONOS_API_PORT:-8080}:8080"
     depends_on:
@@ -68,6 +70,8 @@ services:
       RABBITMQ_PORT: 5672
       RABBITMQ_USERNAME: ${RABBITMQ_USERNAME:-chronos}
       RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:-chronos}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
       CHRONOS_WORKER_CONCURRENCY: ${CHRONOS_WORKER_CONCURRENCY:-4}
     depends_on:
       postgres:

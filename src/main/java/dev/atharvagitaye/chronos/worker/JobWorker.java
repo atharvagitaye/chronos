@@ -59,6 +59,8 @@ public class JobWorker {
 		if (job.getStatus() != dev.atharvagitaye.chronos.job.enums.JobStatus.RUNNING) {
 			return;
 		}
+		metricsService.waitTime(job.getJobType(), job.getPriority().name(), job.getCreatedAt());
+		metricsService.workerStarted();
 		try {
 			Instant processingStartedAt = Instant.now();
 			if (!"SIMULATED".equals(job.getJobType())) {
@@ -78,6 +80,7 @@ public class JobWorker {
 			executionService.fail(jobId, attemptNumber, exception.getMessage());
 			if (job.getRetryCount() >= job.getMaxRetries()) {
 				moveToDlq(job, exception.getMessage());
+				metricsService.dlq(job.getJobType(), job.getPriority().name());
 				return;
 			}
 			job.retry(exception.getMessage());
@@ -96,6 +99,8 @@ public class JobWorker {
 			job.fail(exception.getMessage());
 			executionService.fail(jobId, attemptNumber, exception.getMessage());
 			metricsService.failed(job.getJobType(), job.getPriority().name());
+		} finally {
+			metricsService.workerFinished();
 		}
 	}
 

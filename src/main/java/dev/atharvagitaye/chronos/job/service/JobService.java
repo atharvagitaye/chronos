@@ -136,6 +136,7 @@ public class JobService {
 	public Job cancel(UUID jobId) {
 		Job job = jobRepository.findForUpdate(jobId).orElseThrow(() -> new JobNotFoundException(jobId));
 		job.cancel();
+		metricsService.cancelled(job.getJobType(), job.getPriority().name());
 		return job;
 	}
 
