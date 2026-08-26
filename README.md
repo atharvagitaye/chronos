@@ -2,13 +2,14 @@
 
 Chronos is a distributed task scheduler and asynchronous job execution platform built incrementally with Java 25 and Spring Boot.
 
-## Current Slice: Job persistence and messaging boundary
+## Capabilities
 
 The current implementation provides a working REST API backed by PostgreSQL and a transactional messaging boundary:
 
 - Create a job with a JSON payload
 - Retrieve a job by UUID
-- List jobs with pagination
+- List jobs with filters and pagination metadata
+- Cancel eligible jobs and manually retry eligible terminal jobs
 - Validate job type, priority, and retry limits
 - Persist the schema with Flyway
 - Write a `JOB_CREATED` outbox event in the same transaction as the job
@@ -23,7 +24,9 @@ The current implementation provides a working REST API backed by PostgreSQL and 
 - Export Prometheus metrics through Spring Boot Actuator
 - Support PostgreSQL-backed idempotent job submission
 
-Jobs currently begin in `CREATED`. Worker deployment, monitoring, and Kubernetes infrastructure will be added in later verified slices.
+See [the API reference](docs/api.md), [architecture](docs/architecture/architecture.md), and [operations runbook](docs/architecture/operations.md) for implementation details and operational boundaries.
+
+Jobs begin in `CREATED`. The same application runs in API, worker, or combined mode; Compose and Kubernetes manifests support separate API and worker deployments. Monitoring and Kubernetes remain demonstration configurations that require environment-specific validation before production use.
 
 ## Requirements
 
@@ -95,6 +98,19 @@ List jobs:
 GET /api/v1/jobs?page=0&size=20
 ```
 
+Filter jobs by status, type, priority, or creation time:
+
+```http
+GET /api/v1/jobs?status=SUCCESS&priority=HIGH&createdAfter=2026-01-01T00:00:00Z&page=0&size=20
+```
+
+Cancel or manually retry a job when its current state permits it:
+
+```http
+POST /api/v1/jobs/{jobId}/cancel
+POST /api/v1/jobs/{jobId}/retry
+```
+
 ## Verify
 
 The test suite uses an in-memory H2 database and disables RabbitMQ publishing:
@@ -142,3 +158,13 @@ kubectl apply -f infrastructure/kubernetes
 ```
 
 `keda-scaledobject.yaml` scales workers from 2 to 10 replicas using the HIGH, MEDIUM, and LOW RabbitMQ queue depths. This is a demonstration deployment, not a production-ready cluster configuration.
+
+## Load testing
+
+Use the Windows-friendly load script against a local or disposable environment:
+
+```powershell
+.\scripts\Submit-LoadJobs.ps1 -Count 1000 -DurationMs 100 -UseIdempotencyKeys -WaitForCompletion
+```
+
+The script reports observed submission time, throughput, terminal job counts, and completion time when polling is enabled. Inspect queue depth, retries, DLQ count, and worker behavior in Prometheus/Grafana during the run; no benchmark result is claimed until it has been measured on the target machine.

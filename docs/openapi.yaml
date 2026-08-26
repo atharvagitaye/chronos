@@ -1,0 +1,208 @@
+openapi: 3.0.3
+info:
+  title: Chronos API
+  version: 1.0.0
+  description: Asynchronous job creation, inspection, recovery, and DLQ replay API.
+servers:
+  - url: http://localhost:8080/api/v1
+paths:
+  /jobs:
+    post:
+      summary: Create a job
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateJobRequest'
+      responses:
+        '201':
+          description: Job created
+          headers:
+            Location:
+              schema: { type: string }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Job' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '409': { $ref: '#/components/responses/IdempotencyConflict' }
+    get:
+      summary: List jobs
+      parameters:
+        - $ref: '#/components/parameters/Status'
+        - $ref: '#/components/parameters/JobType'
+        - $ref: '#/components/parameters/Priority'
+        - $ref: '#/components/parameters/CreatedAfter'
+        - $ref: '#/components/parameters/CreatedBefore'
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Size'
+      responses:
+        '200':
+          description: Page of jobs
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/JobPage' }
+  /jobs/{jobId}:
+    get:
+      summary: Get a job
+      parameters: [ { $ref: '#/components/parameters/JobId' } ]
+      responses:
+        '200':
+          description: Job
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Job' }
+        '404': { $ref: '#/components/responses/JobNotFound' }
+  /jobs/{jobId}/cancel:
+    post:
+      summary: Cancel a job unless it is successful or already cancelled
+      parameters: [ { $ref: '#/components/parameters/JobId' } ]
+      responses:
+        '200':
+          description: Cancelled job
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Job' }
+        '404': { $ref: '#/components/responses/JobNotFound' }
+        '409': { $ref: '#/components/responses/InvalidState' }
+  /jobs/{jobId}/retry:
+    post:
+      summary: Manually retry a FAILED, CANCELLED, or DLQ job
+      parameters: [ { $ref: '#/components/parameters/JobId' } ]
+      responses:
+        '200':
+          description: Requeued job
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Job' }
+        '404': { $ref: '#/components/responses/JobNotFound' }
+        '409': { $ref: '#/components/responses/InvalidState' }
+  /dlq/jobs:
+    get:
+      summary: List dead-lettered jobs
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Size'
+      responses:
+        '200':
+          description: Dead-lettered jobs
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Job' }
+  /dlq/jobs/{jobId}/replay:
+    post:
+      summary: Replay a DLQ job through the transactional outbox
+      parameters: [ { $ref: '#/components/parameters/JobId' } ]
+      responses:
+        '200':
+          description: Replayed job
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Job' }
+        '404': { $ref: '#/components/responses/JobNotFound' }
+        '409': { $ref: '#/components/responses/InvalidState' }
+components:
+  parameters:
+    JobId:
+      name: jobId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      schema: { type: string }
+    Status:
+      name: status
+      in: query
+      schema: { $ref: '#/components/schemas/JobStatus' }
+    JobType:
+      name: jobType
+      in: query
+      schema: { type: string }
+    Priority:
+      name: priority
+      in: query
+      schema: { $ref: '#/components/schemas/Priority' }
+    CreatedAfter:
+      name: createdAfter
+      in: query
+      schema: { type: string, format: date-time }
+    CreatedBefore:
+      name: createdBefore
+      in: query
+      schema: { type: string, format: date-time }
+    Page:
+      name: page
+      in: query
+      schema: { type: integer, minimum: 0, default: 0 }
+    Size:
+      name: size
+      in: query
+      schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
+  responses:
+    JobNotFound:
+      description: Job not found
+      content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
+    ValidationError:
+      description: Validation error
+      content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
+    IdempotencyConflict:
+      description: Idempotency key has different input
+      content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
+    InvalidState:
+      description: Job transition is not legal
+      content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
+  schemas:
+    CreateJobRequest:
+      type: object
+      required: [jobType, payload, priority]
+      properties:
+        jobType: { type: string, minLength: 1 }
+        payload: { type: object, additionalProperties: true }
+        priority: { $ref: '#/components/schemas/Priority' }
+        maxRetries: { type: integer, minimum: 0, maximum: 10, default: 3 }
+        scheduledAt: { type: string, format: date-time }
+    Job:
+      allOf:
+        - $ref: '#/components/schemas/CreateJobRequest'
+        - type: object
+          required: [jobId, status, retryCount, createdAt, updatedAt]
+          properties:
+            jobId: { type: string, format: uuid }
+            status: { $ref: '#/components/schemas/JobStatus' }
+            retryCount: { type: integer }
+            createdAt: { type: string, format: date-time }
+            updatedAt: { type: string, format: date-time }
+            startedAt: { type: string, format: date-time, nullable: true }
+            completedAt: { type: string, format: date-time, nullable: true }
+            lastError: { type: string, nullable: true }
+    JobPage:
+      type: object
+      required: [content, page, size, totalElements, totalPages]
+      properties:
+        content:
+          type: array
+          items: { $ref: '#/components/schemas/Job' }
+        page: { type: integer }
+        size: { type: integer }
+        totalElements: { type: integer, format: int64 }
+        totalPages: { type: integer }
+    Priority:
+      type: string
+      enum: [HIGH, MEDIUM, LOW]
+    JobStatus:
+      type: string
+      enum: [CREATED, QUEUED, RUNNING, SUCCESS, FAILED, RETRYING, DLQ, CANCELLED]
+    Error:
+      type: object
+      required: [timestamp, status, error, message]
+      properties:
+        timestamp: { type: string, format: date-time }
+        status: { type: integer }
+        error: { type: string }
+        message: { type: string }
