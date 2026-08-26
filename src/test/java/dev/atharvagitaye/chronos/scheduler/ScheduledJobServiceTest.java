@@ -23,6 +23,8 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.domain.Pageable;
+import static org.mockito.ArgumentMatchers.anyString;
+import java.time.Duration;
 
 @ExtendWith(MockitoExtension.class)
 class ScheduledJobServiceTest {
@@ -39,12 +41,16 @@ class ScheduledJobServiceTest {
 	@Mock
 	private IdempotencyRepository idempotencyRepository;
 
+	@Mock
+	private SchedulerLock schedulerLock;
+
 	@Test
 	void queuesDueJobsThroughOutbox() {
 		Job job = new Job("SIMULATED", Map.of(), JobPriority.HIGH, 3, Instant.now().minusSeconds(1));
 		when(jobRepository.findDueScheduledJobs(any(Instant.class), any(Pageable.class))).thenReturn(List.of(job));
+		when(schedulerLock.acquireLock(anyString(), any(Duration.class))).thenReturn(true);
 
-		new ScheduledJobService(jobRepository, outboxRepository).publishDueJobs();
+		new ScheduledJobService(jobRepository, outboxRepository, schedulerLock).publishDueJobs();
 
 		assertEquals(dev.atharvagitaye.chronos.job.enums.JobStatus.QUEUED, job.getStatus());
 		verify(outboxRepository).save(any(OutboxEvent.class));

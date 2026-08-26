@@ -20,6 +20,8 @@ import org.springframework.test.annotation.DirtiesContext;
 import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.data.redis.core.StringRedisTemplate;
 
 @Testcontainers
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
@@ -53,6 +55,9 @@ class PostgresIntegrationTest {
 
 	@Autowired
 	private IdempotencyRepository idempotencyRepository;
+
+	@MockitoBean
+	private StringRedisTemplate redisTemplate;
 
 	@Test
 	void appliesMigrationsAndPersistsJobOutboxAndIdempotencyRecord() {

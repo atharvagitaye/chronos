@@ -19,15 +19,23 @@ public class ScheduledJobService {
 
 	private final JobRepository jobRepository;
 	private final OutboxRepository outboxRepository;
+	private final SchedulerLock schedulerLock;
 
-	public ScheduledJobService(JobRepository jobRepository, OutboxRepository outboxRepository) {
+	public ScheduledJobService(JobRepository jobRepository, OutboxRepository outboxRepository, SchedulerLock schedulerLock) {
 		this.jobRepository = jobRepository;
 		this.outboxRepository = outboxRepository;
+		this.schedulerLock = schedulerLock;
 	}
 
 	@Scheduled(fixedDelayString = "${chronos.scheduler.interval-ms:1000}")
 	@Transactional
 	public void publishDueJobs() {
+		// Acquire lock for slightly less than the interval to prevent concurrent runs on different nodes
+		// but allow the next interval to acquire it.
+		if (!schedulerLock.acquireLock("chronos:scheduler:lock", java.time.Duration.ofMillis(900))) {
+			return; // Another instance holds the lock
+		}
+
 		List<Job> jobs = jobRepository.findDueScheduledJobs(Instant.now(), PageRequest.of(0, 50));
 		for (Job job : jobs) {
 			job.queue();
