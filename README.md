@@ -11,6 +11,29 @@ Chronos is a fault-tolerant job scheduling and asynchronous execution platform b
 - Redis-based scheduler coordination with PostgreSQL as the source of truth
 - Prometheus metrics, Grafana dashboard, Docker Compose, and Kubernetes/KEDA manifests
 
+## Architecture
+
+```mermaid
+flowchart LR
+    Client[Client] --> API[Chronos API]
+    API --> DB[(PostgreSQL)]
+    API --> Outbox[Transactional Outbox]
+    Scheduler[Scheduler] --> DB
+    Scheduler --> Outbox
+    Redis[(Redis)] -. scheduler lock .-> Scheduler
+    Outbox --> Publisher[Outbox Publisher]
+    Publisher --> Exchange[RabbitMQ Exchange]
+    Exchange --> Queues[Priority Queues]
+    Queues --> Worker[Chronos Worker]
+    Worker --> DB
+    Worker --> Retry[Retry Queues]
+    Retry --> Queues
+    Worker --> DLQ[Dead-Letter Queue]
+    Prometheus --> API
+    Prometheus --> Worker
+    Grafana --> Prometheus
+```
+
 ## Quick Start
 
 Requirements: Java 25, Docker Desktop, and Maven Wrapper.
